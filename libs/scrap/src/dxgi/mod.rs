@@ -396,7 +396,7 @@ impl Capturer {
         } else {
             let width = self.width;
             let height = self.height;
-            Ok(Frame::PixelBuffer(PixelBuffer::with_BGRA(
+            Ok(Frame::PixelBuffer(PixelBuffer::new(
                 self.get_pixelbuffer(timeout)?,
                 width,
                 height,

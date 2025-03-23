@@ -1389,7 +1389,7 @@ impl VideoHandler {
     }
 
     /// Start or stop screen record.
-    pub fn record_screen(&mut self, start: bool, id: String, display_idx: usize, camera: bool) {
+    pub fn record_screen(&mut self, start: bool, id: String, display_idx: usize) {
         self.record = false;
         if start {
             self.recorder = Recorder::new(RecorderContext {
@@ -1397,7 +1397,6 @@ impl VideoHandler {
                 id,
                 dir: crate::ui_interface::video_save_directory(false),
                 display_idx,
-                camera,
                 tx: None,
             })
             .map_or(Default::default(), |r| Arc::new(Mutex::new(Some(r))));
@@ -2350,7 +2349,6 @@ impl LoginConfigHandler {
                 show_hidden: !self.get_option("remote_show_hidden").is_empty(),
                 ..Default::default()
             }),
-            ConnType::VIEW_CAMERA => lr.set_view_camera(Default::default()),
             ConnType::PORT_FORWARD | ConnType::RDP => lr.set_port_forward(PortForward {
                 host: self.port_forward.0.clone(),
                 port: self.port_forward.1,
@@ -2438,7 +2436,6 @@ pub fn start_video_thread<F, T>(
 {
     let mut video_callback = video_callback;
     let mut last_chroma = None;
-    let is_view_camera = session.is_view_camera();
 
     std::thread::spawn(move || {
         #[cfg(windows)]
@@ -2481,7 +2478,7 @@ pub fn start_video_thread<F, T>(
                             let record_permission = session.lc.read().unwrap().record_permission;
                             let id = session.lc.read().unwrap().id.clone();
                             if record_state && record_permission {
-                                handler.record_screen(true, id, display, is_view_camera);
+                                handler.record_screen(true, id, display);
                             }
                             video_handler = Some(handler);
                         }
@@ -2562,7 +2559,7 @@ pub fn start_video_thread<F, T>(
                     MediaData::RecordScreen(start) => {
                         let id = session.lc.read().unwrap().id.clone();
                         if let Some(handler) = video_handler.as_mut() {
-                            handler.record_screen(start, id, display, is_view_camera);
+                            handler.record_screen(start, id, display);
                         }
                     }
                     _ => {}

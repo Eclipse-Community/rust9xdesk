@@ -83,7 +83,6 @@ struct ParsedPeerInfo {
     platform: String,
     is_installed: bool,
     idd_impl: String,
-    support_view_camera: bool,
 }
 
 impl ParsedPeerInfo {
@@ -130,10 +129,7 @@ impl<T: InvokeUiSession> Remote<T> {
         #[cfg(target_os = "windows")]
         let _file_clip_context_holder = {
             // `is_port_forward()` will not reach here, but we still check it for clarity.
-            if !self.handler.is_file_transfer()
-                && !self.handler.is_port_forward()
-                && !self.handler.is_view_camera()
-            {
+            if !self.handler.is_file_transfer() && !self.handler.is_port_forward() {
                 // It is ok to call this function multiple times.
                 ContextSend::enable(true);
                 Some(crate::SimpleCallOnReturn {
@@ -156,8 +152,6 @@ impl<T: InvokeUiSession> Remote<T> {
         let mut received = false;
         let conn_type = if self.handler.is_file_transfer() {
             ConnType::FILE_TRANSFER
-        } else if self.handler.is_view_camera() {
-            ConnType::VIEW_CAMERA
         } else {
             ConnType::default()
         };
@@ -179,7 +173,7 @@ impl<T: InvokeUiSession> Remote<T> {
                     .set_connected();
                 self.handler.set_connection_type(peer.is_secured(), direct); // flutter -> connection_ready
                 self.handler.update_direct(Some(direct));
-                if conn_type == ConnType::DEFAULT_CONN || conn_type == ConnType::VIEW_CAMERA {
+                if conn_type == ConnType::DEFAULT_CONN {
                     self.handler
                         .set_fingerprint(crate::common::pk_to_fingerprint(pk.unwrap_or_default()));
                 }
@@ -196,8 +190,7 @@ impl<T: InvokeUiSession> Remote<T> {
                 {
                     let is_conn_not_default = self.handler.is_file_transfer()
                         || self.handler.is_port_forward()
-                        || self.handler.is_rdp()
-                        || self.handler.is_view_camera();
+                        || self.handler.is_rdp();
                     if !is_conn_not_default {
                         (self.client_conn_id, rx_clip_client_holder.0) =
                             clipboard::get_rx_cliprdr_client(&self.handler.get_id());
@@ -337,12 +330,12 @@ impl<T: InvokeUiSession> Remote<T> {
             .set_disconnected(round);
 
         #[cfg(not(target_os = "ios"))]
-        if !self.handler.is_view_camera() && _set_disconnected_ok {
+        if _set_disconnected_ok {
             Client::try_stop_clipboard();
         }
 
         #[cfg(any(target_os = "windows", feature = "unix-file-copy-paste"))]
-        if !self.handler.is_view_camera() && _set_disconnected_ok {
+        if _set_disconnected_ok {
             crate::clipboard::try_empty_clipboard_files(ClipboardSide::Client, self.client_conn_id);
         }
     }
@@ -1183,25 +1176,6 @@ impl<T: InvokeUiSession> Remote<T> {
         }
     }
 
-    fn check_view_camera_support(&self, peer_version: &str, peer_platform: &str) -> bool {
-        if self.peer_info.support_view_camera {
-            return true;
-        }
-        if hbb_common::get_version_number(&peer_version) < hbb_common::get_version_number("1.3.9")
-            && (peer_platform == "Windows" || peer_platform == "Linux")
-        {
-            self.handler.msgbox(
-                "error",
-                "Download new version",
-                "upgrade_remote_rustdesk_client_to_{1.3.9}_tip",
-                "",
-            );
-        } else {
-            self.handler.on_error("view_camera_unsupported_tip");
-        }
-        return false;
-    }
-
     async fn handle_msg_from_peer(&mut self, data: &[u8], peer: &mut Stream) -> bool {
         if let Ok(msg_in) = Message::parse_from_bytes(&data) {
             match msg_in.union {
@@ -1256,19 +1230,10 @@ impl<T: InvokeUiSession> Remote<T> {
                         let peer_version = pi.version.clone();
                         let peer_platform = pi.platform.clone();
                         self.set_peer_info(&pi);
-                        if self.handler.is_view_camera() {
-                            if !self.check_view_camera_support(&peer_version, &peer_platform) {
-                                self.handler.lc.write().unwrap().handle_peer_info(&pi);
-                                return false;
-                            }
-                        }
                         self.handler.handle_peer_info(pi);
                         #[cfg(all(target_os = "windows", not(feature = "flutter")))]
                         self.check_clipboard_file_context();
-                        if !(self.handler.is_file_transfer()
-                            || self.handler.is_port_forward()
-                            || self.handler.is_view_camera())
-                        {
+                        if !(self.handler.is_file_transfer() || self.handler.is_port_forward()) {
                             #[cfg(feature = "flutter")]
                             #[cfg(not(target_os = "ios"))]
                             let rx = Client::try_start_clipboard(None);
@@ -1567,9 +1532,6 @@ impl<T: InvokeUiSession> Remote<T> {
                                     );
                                 }
                             }
-                            Ok(Permission::Camera) => {
-                                self.handler.set_permission("camera", p.enabled);
-                            }
                             Ok(Permission::Restart) => {
                                 self.handler.set_permission("restart", p.enabled);
                             }
@@ -1811,11 +1773,6 @@ impl<T: InvokeUiSession> Remote<T> {
                 .flatten()
                 .unwrap_or_default()
                 .to_string();
-            self.peer_info.support_view_camera = platform_additions
-                .get("support_view_camera")
-                .map(|v| v.as_bool())
-                .flatten()
-                .unwrap_or(false);
         }
     }
 

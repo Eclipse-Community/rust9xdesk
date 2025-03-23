@@ -190,10 +190,6 @@ impl<T: InvokeUiSession> Session<T> {
             .eq(&ConnType::FILE_TRANSFER)
     }
 
-    pub fn is_view_camera(&self) -> bool {
-        self.lc.read().unwrap().conn_type.eq(&ConnType::VIEW_CAMERA)
-    }
-
     pub fn is_port_forward(&self) -> bool {
         let conn_type = self.lc.read().unwrap().conn_type;
         conn_type == ConnType::PORT_FORWARD || conn_type == ConnType::RDP
@@ -1634,12 +1630,7 @@ impl<T: InvokeUiSession> Interface for Session<T> {
             if pi.displays.is_empty() {
                 self.lc.write().unwrap().handle_peer_info(&pi);
                 self.update_privacy_mode();
-                let msg = if self.is_view_camera() {
-                    "No cameras"
-                } else {
-                    "No displays"
-                };
-                self.msgbox("error", "Error", msg, "");
+                self.msgbox("error", "Remote Error", "No Displays", "");
                 return;
             }
             self.try_change_init_resolution(pi.current_display);
